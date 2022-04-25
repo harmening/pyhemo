@@ -1,0 +1,32 @@
+name: "build"
+on:
+  push:
+    branches:
+      - main
+    pull_request:
+      - main
+
+jobs:
+  python3_7:
+    runs-on: ubuntu-latest
+    container:
+      image: harmening/pyhemo:latest
+    steps:
+      - name: Install test suite
+        run: |
+          pip install pytest
+          pip install coverage
+          pip install codecov
+          pip install pytest-codecov
+      - name: Run pytest
+        run: |
+          cd /
+          coverage run -m pytest tests
+          coverage report -m
+          coverage xml
+          codecov
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v2
+        with:
+          #token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
+          files: /coverage.xml
