@@ -7,11 +7,26 @@ on:
       - main
 
 jobs:
-  python3_7:
+  python3_x:
+    strategy:
+      fail-fast: false
+      matrix:
+        python_version: [6, 7, 8, 9, 10]
     runs-on: ubuntu-latest
     container:
-      image: harmening/pyhemo:latest
+      image: ghcr.io/harmening/pyhemo:py3.${{ matrix.python_version }}
+      credentials:
+        username: ${{ secrets.GHCR_USERNAME }}
+        password: ${{ secrets.GHCR_TOKEN }}
+      volumes: 
+        - ${{ github.workspace }}:/pyhemo
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Install pyhemo
+        run: |
+          cd /pyhemo
+          python setup.py develop
       - name: Install test suite
         run: |
           pip install pytest
@@ -20,7 +35,7 @@ jobs:
           pip install pytest-codecov
       - name: Run pytest
         run: |
-          cd /
+          cd /pyhemo
           coverage run -m pytest tests
           coverage report -m
           coverage xml

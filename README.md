@@ -3,7 +3,7 @@
 <br>
 [![build](https://github.com/harmening/pyhemo/actions/workflows/action.yml/badge.svg)](https://github.com/harmening/pyhemo/actions)
 [![coverage](https://codecov.io/gh/harmening/pyhemo/branch/main/graph/badge.svg?token=LHJ5W57UE8)](https://codecov.io/gh/harmening/pyhemo)
-[![python](https://img.shields.io/badge/python-3.7-blue.svg)](https://www.python.org/downloads/release/python-360/)
+[![python](https://img.shields.io/badge/python-3.6|3.7|3.8|3.9|3.10-blue.svg)](https://www.python.org/downloads/release/python-360/)
 
 
 
@@ -38,12 +38,12 @@ $ docker pull harmening/pyhemo
 ```
 ### Run example script interactively:
 ```bash
-$ docker run -it pyhemo bash
+$ docker run -it harmening/pyhemo bash
 $ python examples/comparison_bem_fem.py
 ```
 or directly explore pyhemo via python prompt:
 ```bash
-$ docker run -it pyhemo
+$ docker run -it harmening/pyhemo
 $ import pyhemo
 $ ...
 ```
@@ -54,10 +54,8 @@ $ ...
 
 
 ## To Dos:
-- python 3.6 - 3.10
-- build and push docker container for every python version
-- enable BEM/FEM usage alone without installing everything
-- use HArtMuT as standard/example head 
+- Enable BEM/FEM usage alone without installing the other 
+- Use HArtMuT as standard/example head 
 <!--- wie FEM hartmut bauen? colin mit ext
   nacken -> colinFEM ohne scalp. Dann extended scalp nehmen und drumpacken und
   FEM mesh erstellen)
