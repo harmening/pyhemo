@@ -29,31 +29,42 @@ geometry = OrderedDict([('cortex', load_tri(os.path.join(DATADIR, 'cortex.tri'))
 bem = OpenMEEGHead(conductivity, geometry, sensors)
 print('\nCreated BEM head.\n')
 
+# FEM of the 4 nested meshes above
+mesh_filename = os.path.join(DATADIR, 'bnd4_1922_FEM.mat')
+fem4 = DUNEuroHead(cond, mesh_filename, sensors)
 
-# FEM 
-mesh_filename = os.path.join(DATADIR, 'mesh6_maxvoxvol2.msh')
-fem = DUNEuroHead(cond, mesh_filename, sensors)
-print('\nCreated FEM head.\n')
+# FEM with 6 tissue types meshed directly from segmentation
+mesh_filename = os.path.join(DATADIR, 'mesh6_maxvoxvol5.msh')
+fem6 = DUNEuroHead(cond, mesh_filename, sensors)
+print('\nCreated FEM heads.\n')
 
 print('Created head instances.\n')
 
 bem.add_dipoles(dipoles)
-fem.add_dipoles(dipoles)
+fem4.add_dipoles(dipoles)
+fem6.add_dipoles(dipoles)
 print('Added dipoles.\n')
 
 
 V_bem = {'dsm': bem.V('dsm')}
 print('\nCalculated BEM leadfields.\n')
 
-V_fem = {}
+V_fem4 = {}
 for sm_type in ['Partial integration', 'Venant', 'Subtraction', 'Spatial Venant']:
-    V_fem[sm_type] = fem.V(sm_type)
+    V_fem4[sm_type] = fem4.V(sm_type)
+V_fem6 = {}
+for sm_type in ['Partial integration', 'Venant', 'Subtraction', 'Spatial Venant']:
+    V_fem6[sm_type] = fem6.V(sm_type)
 print('\nCalculated FEM leadfields.\n')
 
 
-print('Calculate Pearson correlation of BEM with different FEMs:')
+print('Calculate Pearson correlation of BEM with different FEMs of (FEM4):')
 for sm_type in ['Partial integration', 'Venant', 'Subtraction', 'Spatial Venant']:
-    c = np.mean([np.abs(np.corrcoef(V_bem['dsm'][:,i], V_fem[sm_type][:,i])[0,1]) for i in range(10)])
+    c = np.mean([np.abs(np.corrcoef(V_bem['dsm'][:,i], V_fem4[sm_type][:,i])[0,1]) for i in range(10)])
     print('%s: %f' % (sm_type, c))
 
+print('Calculate Pearson correlation of BEM with different FEMs (FEM6):')
+for sm_type in ['Partial integration', 'Venant', 'Subtraction', 'Spatial Venant']:
+    c = np.mean([np.abs(np.corrcoef(V_bem['dsm'][:,i], V_fem6[sm_type][:,i])[0,1]) for i in range(10)])
+    print('%s: %f' % (sm_type, c))
 
