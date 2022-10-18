@@ -2,7 +2,7 @@ import os, pytest
 import numpy as np
 import openmeeg as om
 from numpy.testing import assert_array_equal, assert_array_almost_equal
-from pyhemo.OpenMEEGHead import OpenMEEGHead, om2np
+from pyhemo.OpenMEEGHead import OpenMEEGHead
 import sys
 sys.path.append('./tests')
 from data_for_testing import simple_test_shapes, find_center_of_triangle
@@ -26,25 +26,47 @@ def test_OpenMEEGHead():
     for i, bnd in enumerate(bnds):
         pos, tri = bnd
         nb_elements += pos.shape[0] + tri.shape[0] 
-        nb_entries += len(head.ind['V'][i]) + len(head.ind['p'][i])
+        ###nb_entries += len(head.ind['V'][i]) + len(head.ind['p'][i]) ###
         #if i != len(bnds)-1:
         #    nb_entries += len(head.ind['p'][i])
         if i == len(bnds)-1:
             nb_elements -= tri.shape[0]
-    assert nb_elements == nb_entries == head.A.nlin()
-    assert head.ind['p'][0][-1]+1 == head.A.nlin() # if inside out and openmeeg works outside in
+    #assert nb_elements == nb_entries == head.A.nlin()
+    #assert nb_elements == head.A.nlin()
+    assert nb_elements == head.A.shape[0]
+    ###assert nb_elements == nb_entries
+    # if inside out and openmeeg works outside in
+    ###assert head.ind['p'][0][-1]+1 == head.A.nlin() 
     assert head.mesh_names[-1] == list(geom.keys())[0] # reversed order
-    assert head.Ainv != head.A  # the order is important here!
-    #eitsm = om2np(head.eitsm)
-    #assert np.sum(eitsm) != 0
-    #assert head.eitsm.nlin() == head.A.nlin() 
-    #assert head.eitsm.ncol() == electrodes.shape[0] == head.n_electrodes
-    #assert head.gain.nlin() == head.gain.ncol() == electrodes.shape[0]
-    h2em = om2np(head.h2em)
-    assert (h2em >= 0.0).all() and (h2em <= 1.0).all()   
-    assert int(np.sum(h2em)) == electrodes.shape[0]
+    ###assert head.Ainv != head.A  # the order is important here! ###
+    assert (head.h2em >= 0.0).all() and (head.h2em <= 1.0).all()   
+    assert int(round(np.sum(head.h2em),0)) == electrodes.shape[0]
     #head.set_cond(cond)
-    #assert head._A == None
-    #gain = om2np(head.gain)
-    hminv = om2np(head.Ainv)
-    #assert_array_almost_equal(h2em.dot(hminv.dot(eitsm)), gain)
+    # random dips
+    cortex = bnds[0][0]
+    minmax = [(np.min(cortex[:,i]), np.max(cortex[:,i])) for i in range(3)]
+    diff = [(minmax[i][1]-minmax[i][0])/3 for i in range(3)]
+    minmax = [(minmax[i][0]+diff[i], minmax[i][1]-diff[i]) for i in range(3)]
+    diff = [minmax[i][1]-minmax[i][0] for i in range(3)]
+    dips = np.random.rand(10,6)
+    for i in range(10):
+        for j in range(3):
+            dips[i][j] = minmax[j][0] + diff[j]*dips[i][j]
+    head.add_dipoles(dips)
+    assert (dips == head.dipoles).all()
+    fn_dips = './test_tmp.dip'
+    with open(fn_dips, 'w') as f:
+        for d in dips:
+            f.write('%f %f %f %f %f %f\n' % (d[0],d[1],d[2], d[3],d[4],d[5]))
+    head.add_dipoles(fn_dips)
+    #assert assert_array_almost_equal(dips, head.dipoles) 
+    os.remove(fn_dips)
+    assert head.ind['V'][-1][0] == 0
+    with pytest.raises(NotImplementedError):
+        head.V('msm')
+    V = head.V('dsm')
+    assert V.shape == (electrodes.shape[0],10)
+    Ainv = head.Ainv
+    assert_array_almost_equal(V, head.V('dsm'))
+
+

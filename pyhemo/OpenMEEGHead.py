@@ -15,18 +15,19 @@ class OpenMEEGHead(object):
         if isinstance(geometry, dict):
             geom_out2inside = OrderedDict([(tissue, bnd) for tissue, bnd in
                                            reversed(geometry.items())])
-            fn_geom = os.path.join(tmp, 'geom_'+str(random()))
+            fn_geom = os.path.join(tmp, str(int(random()*100000000))+'.geom')
             write_geom_file(geom_out2inside, fn_geom)
             self.mesh_names = list(geom_out2inside.keys()) # out to inside
         else:
             raise ValueError
         self.geometry = geometry # inside to outside
         self.cond = conductivity
-        fn_cond = os.path.join(tmp, 'cond_'+str(random()))
+        fn_cond = os.path.join(tmp, str(int(random()*100000000))+'.cond')
         write_cond_file(self.cond, fn_cond)
         self.elec_positions = elec_positions
-        fn_elec = os.path.join(tmp, 'elec_'+str(random()))
-        if isinstance(elec_positions, list) or isinstance(elec_positions, np.ndarray):
+        fn_elec = os.path.join(tmp, str(int(random()*100000000))+'.elec')
+        if isinstance(elec_positions, list) or isinstance(elec_positions,
+                                                          np.ndarray):
             write_elec_file(elec_positions, fn_elec)
         elif isinstance(elec_positions, str):
             copyfile(elec_positions, fn_elec)
@@ -38,8 +39,7 @@ class OpenMEEGHead(object):
         if isinstance(geometry, dict):
             for tissue in geometry.keys(): 
                 os.remove(os.path.join(tmp, tissue+'.tri'))
-        self.GAUSS_ORDER = 3
-        #self.ind = self._get_indices_inside_out()
+        ##self.ind = self._get_indices_inside_out()
         self.ind = self._get_indices_outside_in()
         self._A = None
         self._Ainv = None
@@ -51,23 +51,30 @@ class OpenMEEGHead(object):
         #idx = [i for i in range(self.geom.nb_meshes())]
         ind = {tissue: i for i, tissue in enumerate(self.mesh_names)}
         # From outside to inside
-        ind['V'] = []#np.zeros((self.geom.nb_meshes(), 2), dtype=np.int)
-        ind['p'] = []#np.zeros((self.geom.nb_meshes(), 2), dtype=np.int)
-        for tissue, mesh in zip(reversed(self.mesh_names), self.geom.meshes()):
+        ind['V'] = []#np.zeros((self.geom.nb_meshes(), 2), dtype=int)
+        ind['p'] = []#np.zeros((self.geom.nb_meshes(), 2), dtype=int)
+        for t in range(len(self.mesh_names), 0, -1):
+            tissue = self.mesh_names[t-1]
+            mesh = self.geom.mesh(str(t))
             i = ind[tissue]
-            V_num = mesh.nb_vertices()
+            V_num = len(mesh.vertices())
             start = 0 if i == len(self.mesh_names)-1 else ind['V'][-1][-1]+1
             ind['V'].append(np.arange(start, start + V_num))
 
-        for tissue, mesh in zip(reversed(self.mesh_names), self.geom.meshes()):
+        for t in range(len(self.mesh_names), 0, -1):
+            tissue = self.mesh_names[t-1]
+            mesh = self.geom.mesh(str(t))
             i = ind[tissue]
-            p_num = mesh.nb_triangles()
-            if i == len(self.mesh_names)-1: # the triangles of the outermost mesh are not included in A
+            p_num = len(mesh.triangles())
+            # the triangles of the outermost mesh are not included in A
+            if i == len(self.mesh_names)-1:
                 ind['p'].append(np.arange(0))
             elif i == len(self.mesh_names)-2: 
-                ind['p'].append(np.arange(ind['V'][-1][-1]+1, ind['V'][-1][-1]+1 + p_num))  
+                ind['p'].append(np.arange(ind['V'][-1][-1]+1,
+                                          ind['V'][-1][-1]+1 + p_num))  
             else:
-                ind['p'].append(np.arange(ind['p'][-1][-1]+1, ind['p'][-1][-1]+1 + p_num))
+                ind['p'].append(np.arange(ind['p'][-1][-1]+1,
+                                          ind['p'][-1][-1]+1 + p_num))
         # Daniels version:
         ind['V'] = [lst for lst in reversed(ind['V'])]
         ind['p'] = [lst for lst in reversed(ind['p'])]
@@ -76,66 +83,61 @@ class OpenMEEGHead(object):
     @property
     def A(self):
         """Compute/return the attribute system matrix A"""
-        if not self._A:
-            self._A = om.HeadMat(self.geom, self.GAUSS_ORDER)
+        if not isinstance(self._A, np.ndarray):
+            A = om.HeadMat(self.geom) #, self.GAUSS_ORDER)
+            self._A = om.Matrix(A).array()
             #self._condition_nb = self.condition_nb
         return self._A
     @property
     def Ainv(self):
         """Compute/return the attribute system matrix A inverse"""
-        if not self._Ainv:
-            # deepcopy
-            fn_A = os.path.join(tempfile.mkdtemp(), 'A_'+str(random()))
-            self.A.save(fn_A)
-            self._Ainv = self._A
-            self._Ainv.invert()
-            self._A = om.SymMatrix(fn_A)
-            os.remove(fn_A)
+        if not isinstance(self._Ainv, np.ndarray):
+            print("Warning: inverting A explicitly...")
+            self._Ainv = np.linalg.pinv(self.A)
         return self._Ainv
     @property
     def h2em(self):
         """Compute/return the mapping from outer boundary to electrodes"""
-        if not self._h2em:
-            self._h2em = om.Head2EEGMat(self.geom, self.sens)
+        if not isinstance(self._h2em, np.ndarray):
+            h2em = om.Head2EEGMat(self.geom, self.sens)
+            self._h2em = om.Matrix(h2em).array()
         return self._h2em
 
-    def asnp(self, openmeeg_matrix):
-        """Convert openmeeg_matrix to numpy array"""
-        return om2np(openmeeg_matrix)
-
     def add_dipoles(self, dipole_locations):
-        if isinstance(dipole_locations, list) or isinstance(dipole_locations, np.ndarray):
+        if isinstance(dipole_locations, list) or isinstance(dipole_locations,
+                                                            np.ndarray):
             self.dipoles = dipole_locations 
-            fn_dip = os.path.join(tempfile.mkdtemp(), 'dipoles_'+str(random()))
+            fn_dip = os.path.join(tempfile.mkdtemp(),
+                                  'dipoles_'+str(int(random()*100000000)))
             write_dip_file(self.dipoles, fn_dip)
         elif isinstance(dipole_locations, str):
-            with open(dipole_locations, 'r') as f:
+            fn_dip = dipole_locations
+            with open(fn_dip, 'r') as f:
                 lines = f.readlines()
             self.dipoles = [[float(x) for x in line.split()] for line in lines]
+        #self.dipoles = np.array(self.dipoles)
+        #self.dipoles = om.Matrix(np.asfortranarray(self.dipoles))
         self.dipole_file = fn_dip 
+        self._V = None
 
     def V(self, source_model_type):
-        if not self._V:
+        if not isinstance(self._V, dict):
+            self._V = {}
+        if not source_model_type in self._V.keys():
             if source_model_type == 'dsm':
                 domain = self.mesh_names[0]
-            #elif source_model_type == 'eit':
-            #    domain = self.mesh_names[-1]
             else:
                 raise NotImplementedError
-            dipoles = om.Matrix(self.dipole_file) 
-            GAUSS_ORDER = 3
-            use_adaptive_integration = True
-            dsm = om.DipSourceMat(self.geom, dipoles, GAUSS_ORDER, use_adaptive_integration, domain)
-            #K = self.Ainv * dsm
-            #L = self.h2em * K
-            L = self.h2em * self.Ainv * dsm
-            self._V = om2np(L).astype(np.float32)
-        return self._V
-    
-
-def om2np(om_matrix_tmp):
-    np_matrix = np.zeros((om_matrix_tmp.nlin(), om_matrix_tmp.ncol()))
-    for i in range(om_matrix_tmp.nlin()):
-        for j in range(om_matrix_tmp.ncol()):
-            np_matrix[i,j] = om_matrix_tmp(i,j)
-    return np_matrix
+            #dipoles = om.Matrix(self.dipoles)
+            dipoles = om.Matrix(np.asfortranarray(self.dipoles))
+            dsm = om.DipSourceMat(self.geom, dipoles, domain)
+            dsm = om.Matrix(dsm).array()
+            if isinstance(self._Ainv, np.ndarray):
+                # use precomputed Ainv
+                L = self.h2em.dot(np.dot(self.Ainv, dsm))
+            else:
+                # faster
+                C = np.linalg.solve(self.A, dsm)
+                L = np.dot(self.h2em, C)
+            self._V[source_model_type] = L
+        return self._V[source_model_type]

@@ -55,7 +55,7 @@ $ ...
 
 ## To Dos:
 - Enable BEM/FEM usage alone without installing the other 
-- Use HArtMuT as standard/example head 
+- Use [HArtMuT](https://github.com/harmening/HArtMuT) as standard/example head 
 <!--- wie FEM hartmut bauen? colin mit ext
   nacken -> colinFEM ohne scalp. Dann extended scalp nehmen und drumpacken und
   FEM mesh erstellen)

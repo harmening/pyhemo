@@ -91,6 +91,7 @@ class DUNEuroHead(object):
             with open(dipole_locations, 'r') as f:
                 lines = f.readlines()
             self.dipoles = [[float(x) for x in line.split()] for line in lines]
+        self._V = None
     
     #@property
     def V(self, source_model_type):

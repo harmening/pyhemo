@@ -20,15 +20,15 @@ def sources_mat2txt(fn):
         sources = sources.T
         vec = vec.T
     with open(fn[:-4]+'.txt', 'w') as f:
-        for source, v in zip(sources, vec):
-            #f.write('%f %f %f\n' % (source[0], source[1], source[2]))
-            f.write('%f %f %f %f %f %f\n' % (source[0], source[1], source[2], v[0], v[1], v[2]))
+        for s, v in zip(sources, vec):
+            f.write('%f %f %f %f %f %f\n' % (s[0],s[1],s[2], v[0],v[1],v[2]))
     return fn[:-4]+'.txt'
 
 
 def write_cond_file(cond, filename):
     # create same head geometry with new conductivity values
-    outstr = '# Properties Description 1.0 (Conductivities)\n\nair         0.0\n'
+    outstr = '# Properties Description 1.0 (Conductivities)\n\n'
+    outstr += 'air         0.0\n'
     for i in cond.keys():
         outstr += '%s       %f\n' % (i, cond[i])
     with open(filename, 'w') as f:
@@ -38,7 +38,8 @@ def write_cond_file(cond, filename):
 
 def write_geom_file(geom_out2inside, filename):
     path = os.path.split(filename)[0]
-    outstr = '# Domain Description 1.0\n\nInterfaces %d Mesh\n\n' % len(geom_out2inside)
+    outstr = '# Domain Description 1.0\n\n'
+    outstr += 'Interfaces %d Mesh\n\n' % len(geom_out2inside)
     for tissue in geom_out2inside.keys():
         outstr += '%s.tri\n' % tissue
     outstr += '\nDomains %d\n\n' % (len(geom_out2inside)+1)
@@ -66,13 +67,14 @@ def write_elec_file(elec_positions, filename):
 def write_dip_file(dipole_positions, filename):
     with open(filename, 'w') as f:
         if len(dipole_positions[0]) == 3:
-            for dip in dipole_positions:
-                f.write("%f\t%f\t%f\t%f\t%f\t%f\n" % (dip[0], dip[1], dip[2], 1, 0, 0))
-                f.write("%f\t%f\t%f\t%f\t%f\t%f\n" % (dip[0], dip[1], dip[2], 0, 1, 0))
-                f.write("%f\t%f\t%f\t%f\t%f\t%f\n" % (dip[0], dip[1], dip[2], 0, 0, 1))
+            for d in dipole_positions:
+                f.write("%f\t%f\t%f\t%f\t%f\t%f\n" % (d[0],d[1],d[2], 1,0,0))
+                f.write("%f\t%f\t%f\t%f\t%f\t%f\n" % (d[0],d[1],d[2], 0,1,0))
+                f.write("%f\t%f\t%f\t%f\t%f\t%f\n" % (d[0],d[1],d[2], 0,0,1))
         elif len(dipole_positions[0]) == 6:
-            for dip in dipole_positions:
-                f.write("%f\t%f\t%f\t%f\t%f\t%f\n" % (dip[0], dip[1], dip[2], dip[3], dip[4], dip[5]))
+            for d in dipole_positions:
+                f.write("%f\t%f\t%f\t%f\t%f\t%f\n" % (d[0],d[1],d[2], 
+                                                      d[3],d[4],d[5]))
         else:
             raise NotImplementedError
     return
@@ -80,7 +82,7 @@ def write_dip_file(dipole_positions, filename):
 
 
 
-def load_tri(filename='tmp.tri', normals=False, swap=False, print_warnings=False):
+def load_tri(filename='tmp.tri', normals=False, swap=False, print_warn=False):
     """ Loads mesh from tri-file
     Parameters
     ----------
@@ -125,7 +127,7 @@ def load_tri(filename='tmp.tri', normals=False, swap=False, print_warnings=False
     if swap:
         tris[:, [2, 1]] = tris[:, [1, 2]]
     tris -= 1
-    if not n_items in [3, 4] and print_warnings:
+    if not n_items in [3, 4] and print_warn:
         print('Node normals were not read.')
     # ensure that tris start at zero
     if np.min(tris) != 0:
@@ -177,7 +179,8 @@ def get_normals(vertices, faces):
     ### NEW: CHECK FOR NANS (+ dirty fix)
     nan_idx = set(np.argwhere(np.isnan(normals_v))[:,0])
     for idx in nan_idx:
-        neighbors = set([faces[t][i] for t in np.argwhere(faces==idx)[:,0] for i in range(3)])  - {idx}
+        neighbors = set([faces[t][i] for t in np.argwhere(faces==idx)[:,0] 
+                         for i in range(3)])  - {idx}
         nrm = np.array([0.0, 0.0, 0.0])
         for n in neighbors:
             if (not np.isnan(normals_v[n]).any()):
@@ -253,7 +256,7 @@ def write_tri(pos, tri, filename, normals=None):
     """
     min_idx = np.min(np.array(tri).flatten())
     pos = np.array(pos)
-    tri = np.array(tri, dtype=np.int)
+    tri = np.array(tri, dtype=int)
     if isinstance(normals, list) or isinstance(normals, np.ndarray):
         norm = normals
     else:

@@ -29,13 +29,13 @@ geometry = OrderedDict([('cortex', load_tri(os.path.join(DATADIR, 'cortex.tri'))
 bem = OpenMEEGHead(conductivity, geometry, sensors)
 print('\nCreated BEM head.\n')
 
-# FEM of the 4 nested meshes above
-mesh_filename = os.path.join(DATADIR, 'bnd4_1922_FEM.mat')
-fem4 = DUNEuroHead(cond, mesh_filename, sensors)
-
 # FEM with 6 tissue types meshed directly from segmentation
 mesh_filename = os.path.join(DATADIR, 'mesh6_maxvoxvol5.msh')
 fem6 = DUNEuroHead(cond, mesh_filename, sensors)
+
+# FEM of the 4 nested meshes above
+mesh_filename = os.path.join(DATADIR, 'bnd4_1922_FEM.mat')
+fem4 = DUNEuroHead(conductivity, mesh_filename, sensors)
 print('\nCreated FEM heads.\n')
 
 print('Created head instances.\n')

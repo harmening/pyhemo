@@ -1,39 +1,39 @@
 #!/usr/bin/env python
 import numpy as np
 import openmeeg as om
-om.__version__ = 2.4
+#om.__version__ = 2.5.5
 
 
 def create_geometry(geom_file, cond_file, elec_file):
     geometry = om.Geometry(geom_file, cond_file)
     assert geometry.is_nested()
     #assert geometry.selfCheck()
-    sensors = om.Sensors(elec_file, geometry)
+    sensors = om.Sensors(elec_file)
     return geometry, sensors
 
 
 def mesh2bnd(mesh):
-    min_idx = min([vert.getindex() for vert in mesh.vertices()])
-    verts = np.zeros((mesh.nb_vertices(), 3))
+    min_idx = min([vert.index() for vert in mesh.vertices()])
+    verts = np.zeros((len(mesh.vertices()), 3))
     for v in mesh.vertices():
-        verts[v.getindex()-min_idx,:] = [v(xx) for xx in range(3)]
+        verts[v.index()-min_idx,:] = [v(xx) for xx in range(3)]
     # improve security here? (-> if vertices are not steadily ongoing numbers)
-    tris = [[v.getindex()-min_idx for v in [tri.s1(), tri.s2(), tri.s3()]]
-                                  for tri in mesh.iterator()]
+    tris = [[v.index()-min_idx for v in [tri.vertex(i) for i in range(3)]]
+                                  for tri in mesh.triangles()]
     return np.array(verts), np.array(tris)
 
 
 def getVolumeIndices(head):
     geom = head.geom
-    #idx = [i for i in range(geom.nb_meshes())]
+    #idx = [i for i in range(len(geom.domains())-1)]
     ind = {tissue: i for i, tissue in enumerate(head.mesh_names)}
     # From outside to inside
-    ind['V'] = np.zeros((geom.nb_meshes(), 2), dtype=np.int)
-    ind['p'] = np.zeros((geom.nb_meshes(), 2), dtype=np.int)
+    ind['V'] = np.zeros((len(geom.domains())-1, 2), dtype=np.int)
+    ind['p'] = np.zeros((len(geom.domains())-1, 2), dtype=np.int)
     for tissue, mesh in zip(head.mesh_names, head.geom.meshes()):
         i = ind[tissue]
-        V_num = mesh.nb_vertices()
-        p_num = mesh.nb_triangles()
+        V_num = len(mesh.vertices())
+        p_num = len(mesh.triangles())
         #if i == 0:
         #    ind['p'][i,:] = [np.nan, np.nan]
         if i != 0:
@@ -53,16 +53,20 @@ def align_electrodes(elc, scalp):
     Nelc = len(elc)
     el   = np.zeros((Nelc, 4))
     for i in range(Nelc):
-        proj, dist = ptriprojn(pnt[tri[:,0],:], pnt[tri[:,1],:], pnt[tri[:,2],:], np.array([elc[i,:]]), 1)
-        minindx = np.argmin(abs(dist))
-        mindist = np.min(abs(dist))
-        la, mu, _, _ = lmoutrn(pnt[np.newaxis, tri[minindx,0],:], pnt[np.newaxis, tri[minindx,1],:], pnt[np.newaxis, tri[minindx,2],:], proj[np.newaxis, minindx,:])
-        smallest_dist = dist[minindx]
-        smallest_tri  = minindx
-        smallest_la   = la[0]
-        smallest_mu   = mu[0]
+        proj, dist = ptriprojn(pnt[tri[:,0],:], pnt[tri[:,1],:],
+                               pnt[tri[:,2],:], np.array([elc[i,:]]), 1)
+        min_idx = np.argmin(abs(dist))
+        min_dist = np.min(abs(dist))
+        la, mu, _, _ = lmoutrn(pnt[np.newaxis, tri[min_idx,0],:],
+                               pnt[np.newaxis, tri[min_idx,1],:],
+                               pnt[np.newaxis, tri[min_idx,2],:],
+                               proj[np.newaxis, min_idx,:])
+        min_dist = dist[min_idx]
+        min_tri  = min_idx
+        min_la   = la[0]
+        min_mu   = mu[0]
         # store the projection for this electrode
-        el[i,:] = np.array([smallest_tri, smallest_la, smallest_mu, smallest_dist])
+        el[i,:] = np.array([min_tri, min_la, min_mu, min_dist])
 
     prj = np.zeros((elc.shape))
     for i in range(Nelc):
@@ -105,7 +109,8 @@ def lmoutrn(v1, v2, v3, r):
     vec1 = v2 - v1
     #vec2 = v3 - v2
     vec3 = v3 - v1
-    origin = np.repeat(np.mean(np.vstack((v1, v2, v3)), axis=0), len(v1)).T.reshape(v1.T.shape).T     
+    origin = np.repeat(np.mean(np.vstack((v1, v2, v3)), axis=0),
+                       len(v1)).T.reshape(v1.T.shape).T     
     tmp = np.empty((3, 2, len(v1)))
     tmp[:,0,:] = vec1.T
     tmp[:,1,:] = vec3.T
@@ -117,22 +122,24 @@ def lmoutrn(v1, v2, v3, r):
 
             
     # determine the projection onto the plane of the triangle
-    proj  = v1 + np.multiply(np.vstack((la, la, la)).T, vec1) + np.multiply(np.vstack((mu, mu, mu)).T, vec3)
+    proj  = v1 + np.multiply(np.vstack((la, la, la)).T, vec1) \
+            + np.multiply(np.vstack((mu, mu, mu)).T, vec3)
 
     # determine the signed distance from the original point to its projection
     # where the sign is negative if the original point is closer to the origin 
     origin_r    = np.sum(pow((r    - origin), 2), axis=1)
     origin_proj = np.sum(pow((proj - origin), 2), axis=1)
 
-    dist = np.sqrt(np.sum(pow((r - proj), 2), axis=1)) * np.sign(origin_r-origin_proj)
+    dist = np.sqrt(np.sum(pow((r - proj), 2), axis=1)) * np.sign(origin_r \
+                                                                 - origin_proj)
 
     return la, mu, dist, proj
 
 
 def plinprojn(l1, l2, r, flag=False):
     # PLINPROJN projects a point onto a line or linepiece
-    # where l1 and l2 are Nx3 matrices with the begin and endpoints of the linepieces, 
-    # and r is the point that is projected onto the lines
+    # where l1 and l2 are Nx3 matrices with the begin and endpoints of the
+    # linepieces, and r is the point that is projected onto the lines
     # This is a vectorized version of Robert's ptriproj function and is
     # generally faster than a for-loop around the mex-file.
     #
@@ -151,8 +158,10 @@ def plinprojn(l1, l2, r, flag=False):
             if t[i] > 1:
                 t[i] = 1
 
-    proj = l1 + np.vstack((np.multiply(t, v[:,0]), np.multiply(t, v[:,1]), np.multiply(t, v[:,2]))).T
-    dist = np.sqrt(pow((r[:,0]-proj[:,0]), 2) + pow((r[:,1]-proj[:,1]), 2) + pow((r[:,2]-proj[:,2]), 2))
+    proj = l1 + np.vstack((np.multiply(t, v[:,0]), np.multiply(t, v[:,1]),
+                           np.multiply(t, v[:,2]))).T
+    dist = np.sqrt(pow((r[:,0]-proj[:,0]), 2) + pow((r[:,1]-proj[:,1]), 2) \
+                   + pow((r[:,2]-proj[:,2]), 2))
     return proj, dist
 
 

@@ -1,6 +1,5 @@
 import os, pytest
 import numpy as np
-#from numpy.testing import assert_array_equal, assert_array_almost_equal
 import duneuropy as dp 
 from data_for_testing import load_elecs_dips_txt
 from pyhemo.msh_io import *
@@ -23,7 +22,7 @@ def test_load_msh():
     with open(mesh_filename, 'r') as f:
         lines = [l for l in f.readlines()]
     if lines[3].startswith('$Nodes'):
-        num_nodes = np.int(lines[4].strip())
+        num_nodes = int(lines[4].strip())
         assert np.array(no).shape == (num_nodes, 3)
     if lines[-1].startswith('$EndPhysicalNames'):
         last_tiss = lines[-2].split()[-1].strip('"')
@@ -39,10 +38,10 @@ def test_write_msh():
         lines = [l for l in f.readlines()]   
     os.remove(targetfn)
     assert lines[3].startswith('$Nodes')
-    assert np.int(lines[4].strip()) == 5
+    assert int(lines[4].strip()) == 5
     assert lines[11].startswith('$Elements')
-    assert np.int(lines[13].split()[0]) == 1
-    assert np.int(lines[14].split()[0]) == 2
+    assert int(lines[13].split()[0]) == 1
+    assert int(lines[14].split()[0]) == 2
     
 
 def test_mat2msh():
